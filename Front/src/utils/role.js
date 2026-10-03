@@ -22,7 +22,7 @@ export const isStaff = (role) => normalizeRole(role) !== ROLE_USER;
 const ROLE_LABELS = {
   [ROLE_ADMIN]: "Administrador",
   [ROLE_MODERATOR]: "Moderador",
-  [ROLE_USER]: "Estudiante",
+  [ROLE_USER]: "Colaborador",
 };
 
 export const roleLabel = (role) => ROLE_LABELS[normalizeRole(role)] || "Usuario";
