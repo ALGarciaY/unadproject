@@ -1,0 +1,107 @@
+# CorpForms en el VPS (corpforms.janierzapata.com).
+#
+# Mismo patrón que Finanzas y Dentalis: este archivo **no construye nada**,
+# levanta las imágenes que Integración publicó en GHCR con el SHA del commit.
+# Lo copia el workflow junto con el `.env`.
+#
+# Diferencia con los demás: la base NO va en `controlapp_postgres`. Es temporal,
+# así que trae su propio Postgres, aislado en la red `corpforms`: cuando se
+# retire, `docker compose down -v` se lo lleva todo sin tocar nada compartido.
+#
+# Ningún servicio publica puertos. Caddy (`proxy_caddy`) alcanza solo a
+# `corpforms-web` por la red `proxy`; la API y la base viven únicamente en
+# `corpforms` y solo el nginx de `web` (el BFF) llega a la API.
+#
+# A mano, en el VPS:
+#   cd /opt/corpforms && docker compose -f docker-compose.prod.yml up -d
+
+x-logs: &logs
+  # Sin tope, los logs de Docker crecen hasta llenar el disco (ya pasó).
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: corpforms-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-corpforms}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?falta POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-corpforms}
+    volumes:
+      - corpforms_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [corpforms]
+    <<: *logs
+
+  api:
+    image: ghcr.io/${GITHUB_REPOSITORY}/api:${IMAGE_TAG:-main}
+    container_name: corpforms-api
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      # Spring mapea estas variables sobre application.yaml (relaxed binding):
+      # SPRING_DATASOURCE_URL -> spring.datasource.url, JWT_SECRET -> jwt.secret…
+      SPRING_DATASOURCE_URL: jdbc:postgresql://corpforms-db:5432/${POSTGRES_DB:-corpforms}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-corpforms}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?falta POSTGRES_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET:?falta JWT_SECRET (openssl rand -hex 32)}
+      JWT_EXPIRATION: ${JWT_EXPIRATION:-3600000}
+      # Detrás de Caddy -> nginx: Spring toma esquema y host de X-Forwarded-*.
+      SERVER_FORWARD_HEADERS_STRATEGY: framework
+      APP_CORS_EXTRA_ORIGINS: https://${APP_DOMAIN:?falta APP_DOMAIN}
+      APP_PUBLIC_BASE_URL: https://${APP_DOMAIN}
+      APP_UPLOAD_DIR: /app/uploads
+      APP_MATERIALS_PATH: /app/uploads/materials
+      # Admin que se crea solo si la base está vacía (login = correo + documento).
+      APP_SEED_ADMIN_EMAIL: ${ADMIN_EMAIL:?falta ADMIN_EMAIL}
+      APP_SEED_ADMIN_DOCUMENT: ${ADMIN_DOCUMENT:?falta ADMIN_DOCUMENT}
+      # Correo de recuperación. Vacíos = recuperación deshabilitada (no se usan
+      # los valores por defecto del application.yaml).
+      MAIL_HOST: ${MAIL_HOST:-smtp.gmail.com}
+      MAIL_PORT: ${MAIL_PORT:-587}
+      MAIL_USERNAME: ${MAIL_USERNAME:-}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+      # Swagger no sale a internet (nginx tampoco lo reenvía).
+      SPRINGDOC_API_DOCS_ENABLED: "false"
+      SPRINGDOC_SWAGGER_UI_ENABLED: "false"
+    volumes:
+      - corpforms_uploads:/app/uploads
+    expose:
+      - "8080"
+    mem_limit: 768m
+    networks: [corpforms]
+    <<: *logs
+
+  web:
+    image: ghcr.io/${GITHUB_REPOSITORY}/web:${IMAGE_TAG:-main}
+    container_name: corpforms-web
+    restart: unless-stopped
+    depends_on: [api]
+    # Sin `ports`. Su nginx sirve la SPA y reenvía /api/ y /uploads/ a la API.
+    networks: [corpforms, proxy]
+    <<: *logs
+
+volumes:
+  corpforms_pgdata:
+  corpforms_uploads:
+
+networks:
+  # Interna de la app: web, api y db. No se declara `internal: true` porque la
+  # API necesita salida a internet para el SMTP.
+  corpforms:
+    name: corpforms
+  # La del proxy del servidor (la misma de Finanzas y Dentalis).
+  proxy:
+    external: true
+    name: ${PROXY_NETWORK:-proxy}

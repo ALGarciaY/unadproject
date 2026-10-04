@@ -1,0 +1,44 @@
+# El bloque de CorpForms para /opt/proxy/Caddyfile.
+#
+# Va debajo de los de Dentalis y Finanzas, en el mismo estilo. Después:
+#   cd /opt/proxy
+#   docker compose exec caddy caddy reload --config /etc/caddy/Caddyfile
+#
+# ANTES de añadirlo, el A de `corpforms.janierzapata.com` tiene que resolver a
+# la IP del VPS (Cloudflare en «Solo DNS»): Let's Encrypt valida por HTTP-01 y
+# limita a cinco fallos por hora y dominio.
+#
+#   dig +short corpforms.janierzapata.com
+#   curl -s ifconfig.me        # en el VPS: deben coincidir
+
+# ── CorpForms (temporal) ────────────────────────────────────────────────────
+corpforms.janierzapata.com {
+	encode zstd gzip
+	import seguras
+
+	# Proyecto académico temporal: fuera de buscadores.
+	header X-Robots-Tag "noindex, nofollow"
+
+	# CSP propia. El token vive en localStorage, así que lo que importa es que
+	# no se ejecute script ajeno.
+	#   script-src   'self' + el hash del script inline de index.html (aplica el
+	#                tema antes del primer pintado) + la iframe API de YouTube.
+	#                Si alguien cambia ese script, el hash deja de coincidir y
+	#                solo se pierde eso: la app sigue funcionando. Para recalcular:
+	#                ver deploy/README.md.
+	#   style/font   Google Fonts (Manrope y Material Symbols)
+	#   img-src      miniaturas de YouTube, ui-avatars, unsplash
+	#   frame-src    los videos se embeben desde YouTube
+	#   connect-src  la API va por el mismo origen
+	header Content-Security-Policy "default-src 'self'; script-src 'self' 'sha256-nAZj+6hiOSTsHGP4BJKcMy7rZ/WFE2UHL14Fe9SU8lI=' https://www.youtube.com https://s.ytimg.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; media-src 'self' blob:; frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com; connect-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+
+	# Un solo salto: el nginx de `corpforms-web` sirve la SPA y reenvía /api/.
+	reverse_proxy corpforms-web:80
+
+	log {
+		output file /data/corpforms-acceso.log {
+			roll_size 20mb
+			roll_keep 5
+		}
+	}
+}

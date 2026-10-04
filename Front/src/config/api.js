@@ -1,7 +1,8 @@
 import axios from 'axios';
 
-// Base URL del backend
-export const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8080').replace(/\/+$/, '');
+// Base URL del backend. Vacía ("") = mismo origen: en producción el nginx del
+// contenedor web reenvía /api/ a la API. Sin definir = backend local.
+export const API_BASE_URL = (import.meta.env.VITE_API_URL ?? 'http://localhost:8080').replace(/\/+$/, '');
 
 export const buildApiUrl = (path) => {
   if (!path) return "";

@@ -1,0 +1,147 @@
+name: Despliegue
+
+# Se dispara con un tag `release-X.Y.Z` y **no construye nada**: busca la imagen
+# de ese commit (publicada por Integración) y la levanta en el VPS.
+#
+#   git tag release-1.0.0 && git push origin release-1.0.0
+#
+# El servidor nunca clona el repositorio: recibe `docker-compose.prod.yml` y un
+# `.env` escrito aquí desde los secrets, y baja imágenes de GHCR.
+
+on:
+  push:
+    tags: ['release-*.*.*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: read
+
+# GHCR solo acepta minúsculas y el dueño del repo es `ALGarciaY`: cada job
+# calcula REPO en minúsculas antes de usarlo.
+
+jobs:
+  verificar:
+    name: Comprobar que existe la imagen
+    runs-on: ubuntu-latest
+    steps:
+      - name: Nombre de imagen en minúsculas
+        run: echo "REPO=${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: ¿Está publicada?
+        run: |
+          faltan=0
+          for img in api web; do
+            ref="ghcr.io/${{ env.REPO }}/$img:${{ github.sha }}"
+            if docker manifest inspect "$ref" > /dev/null 2>&1; then
+              echo "  ok   $ref"
+            else
+              echo "  falta $ref"
+              faltan=1
+            fi
+          done
+          if [ $faltan -eq 1 ]; then
+            echo "No hay imagenes para el commit ${{ github.sha }}."
+            echo "El tag tiene que apuntar a un commit que ya paso por main con la Integracion en verde."
+            exit 1
+          fi
+
+  desplegar:
+    name: Desplegar en el VPS
+    runs-on: ubuntu-latest
+    needs: verificar
+    steps:
+      - uses: actions/checkout@v4
+      - name: Nombre de imagen en minúsculas
+        run: echo "REPO=${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
+
+      - name: Escribir el .env de producción
+        run: |
+          cat > .env.prod << 'EOF2'
+          GITHUB_REPOSITORY=${{ env.REPO }}
+          IMAGE_TAG=${{ github.sha }}
+          APP_DOMAIN=${{ vars.APP_DOMAIN || 'corpforms.janierzapata.com' }}
+          PROXY_NETWORK=${{ secrets.PROXY_NETWORK }}
+          POSTGRES_USER=corpforms
+          POSTGRES_DB=corpforms
+          POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
+          JWT_SECRET=${{ secrets.JWT_SECRET }}
+          ADMIN_EMAIL=${{ secrets.ADMIN_EMAIL }}
+          ADMIN_DOCUMENT=${{ secrets.ADMIN_DOCUMENT }}
+          MAIL_USERNAME=${{ secrets.MAIL_USERNAME }}
+          MAIL_PASSWORD=${{ secrets.MAIL_PASSWORD }}
+          EOF2
+
+      - name: Preparar la carpeta en el VPS
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          script: |
+            sudo mkdir -p /opt/corpforms
+            sudo chown -R $USER:$USER /opt/corpforms
+
+      - name: Copiar archivos
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          source: 'docker-compose.prod.yml,.env.prod'
+          target: /opt/corpforms
+
+      - name: Levantar
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          script: |
+            set -e
+            cd /opt/corpforms
+            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+            anterior=$(grep '^IMAGE_TAG=' .env 2>/dev/null | cut -d= -f2 || true)
+            [ -n "$anterior" ] && echo "$anterior" > .version-anterior
+
+            docker pull ghcr.io/${{ env.REPO }}/api:${{ github.sha }}
+            docker pull ghcr.io/${{ env.REPO }}/web:${{ github.sha }}
+
+            mv .env.prod .env
+            chmod 600 .env
+            # El esquema lo crea Hibernate (ddl-auto: update) al arrancar.
+            docker compose -f docker-compose.prod.yml --env-file .env up -d --remove-orphans
+
+            docker compose -f docker-compose.prod.yml ps
+            docker image prune -f
+
+      - name: Comprobar que responde
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          script: |
+            set -e
+            # Contra el contenedor, no el dominio: no depende de Caddy ni DNS.
+            # Spring tarda en arrancar; se le dan hasta ~2 minutos.
+            for i in $(seq 1 24); do
+              if docker exec corpforms-web wget -qO- http://corpforms-api:8080/api/categories > /dev/null 2>&1; then
+                echo "La API responde a través de la red interna."
+                exit 0
+              fi
+              echo "  esperando a la API ($i/24)…"
+              sleep 5
+            done
+            echo "La API no respondió. Últimos logs:"
+            docker compose -f /opt/corpforms/docker-compose.prod.yml logs --tail=80 api
+            exit 1
