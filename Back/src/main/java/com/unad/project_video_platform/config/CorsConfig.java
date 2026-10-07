@@ -28,9 +28,7 @@ public class CorsConfig {
             "http://localhost:3000",
             "http://127.0.0.1:5173",
             "http://127.0.0.1:5174",
-            "http://127.0.0.1:5175",
-            "https://*.ngrok-free.app",
-            "https://*.ngrok-free.dev"
+            "http://127.0.0.1:5175"
         ));
         Arrays.stream(extraOrigins.split(","))
             .map(String::trim)

@@ -1,2 +1,5 @@
 .codex-run/
 Back/uploads/
+
+# Config local con credenciales de desarrollo
+Back/src/main/resources/application-local.yaml

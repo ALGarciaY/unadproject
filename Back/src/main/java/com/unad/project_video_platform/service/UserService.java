@@ -196,8 +196,11 @@ public class UserService implements IUserService {
     public User updatePhoto(MultipartFile file) {
         User user = getCurrentUserEntity();
         String path = fileStorageService.storeImage(file);
+        String previous = user.getPhotoUrl();
         user.setPhotoUrl(path);
-        return userRepository.save(user);
+        User saved = userRepository.save(user);
+        fileStorageService.delete(previous);
+        return saved;
     }
 
     /**

@@ -56,8 +56,9 @@ public class ApiResponse<T> {
         return error(404, "NOT FOUND", "NOT FOUND", error);
     }
 
-    public static <T> ApiResponse<T> internalError(String error) {
-        return error(500, "INTERNAL SERVER ERROR", "INTERNAL SERVER ERROR", error);
+    public static <T> ApiResponse<T> internalError(String detail) {
+        org.slf4j.LoggerFactory.getLogger(ApiResponse.class).error("Error interno: {}", detail);
+        return error(500, "INTERNAL SERVER ERROR", "INTERNAL SERVER ERROR", "Error interno del servidor");
     }
 
     public static <T> ApiResponse<T> unauthorized(String error) {

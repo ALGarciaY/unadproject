@@ -28,9 +28,12 @@ public class VideoStatsService implements IVideoStatsService {
     @Autowired
     private VideoRepository videoRepository;
 
+    @Autowired
+    private com.unad.project_video_platform.security.CurrentUser currentUser;
+
     @Transactional
     public VideoStats recordStats(VideoStatsRequest request) {
-        if (request == null || request.getUserId() == null || request.getContentId() == null) {
+        if (request == null || request.getContentId() == null) {
             throw new IllegalArgumentException("El usuario y el contenido son obligatorios");
         }
 
@@ -40,14 +43,14 @@ public class VideoStatsService implements IVideoStatsService {
         Integer secondsToAdd = Math.max(request.getWatchTimeSeconds() != null ? request.getWatchTimeSeconds() : 0, 0);
         boolean countView = Boolean.TRUE.equals(request.getCountView());
 
-        User user = userRepository.findById(request.getUserId())
-                .orElseThrow(() -> new RuntimeException("Usuario no encontrado con id: " + request.getUserId()));
+        User user = currentUser.require();
+        Integer userId = user.getId();
         Video content = videoRepository.findById(request.getContentId())
                 .orElseThrow(() -> new RuntimeException("Contenido no encontrado con id: " + request.getContentId()));
 
         VideoStats stats = videoStatsRepository
                 .findByUserIdAndContentIdAndPeriodYearAndPeriodMonth(
-                        request.getUserId(),
+                        userId,
                         request.getContentId(),
                         periodYear,
                         periodMonth
