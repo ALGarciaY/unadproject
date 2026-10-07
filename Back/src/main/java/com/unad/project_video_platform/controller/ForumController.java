@@ -9,7 +9,6 @@ import com.unad.project_video_platform.service.impl.IForumService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -22,7 +21,6 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/forum")
-@CrossOrigin(origins = "*")
 public class ForumController {
 
     @Autowired
@@ -43,6 +41,9 @@ public class ForumController {
         try {
             NotificationSummaryResponse summary = forumService.getNotificationSummary(userId);
             return ResponseEntity.ok(ApiResponse.ok("Notifications consulted", summary));
+        } catch (org.springframework.security.access.AccessDeniedException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(ApiResponse.<NotificationSummaryResponse>forbidden(e.getMessage()));
         } catch (RuntimeException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(ApiResponse.<NotificationSummaryResponse>notFound(e.getMessage()));
@@ -57,6 +58,9 @@ public class ForumController {
         try {
             forumService.markNotificationsSeen(userId);
             return ResponseEntity.ok(ApiResponse.ok("Notifications marked as seen", null));
+        } catch (org.springframework.security.access.AccessDeniedException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(ApiResponse.<Void>forbidden(e.getMessage()));
         } catch (RuntimeException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(ApiResponse.<Void>notFound(e.getMessage()));
@@ -75,6 +79,9 @@ public class ForumController {
         } catch (IllegalArgumentException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(ApiResponse.<Question>badRequest(e.getMessage()));
+        } catch (org.springframework.security.access.AccessDeniedException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(ApiResponse.<Question>forbidden(e.getMessage()));
         } catch (RuntimeException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(ApiResponse.<Question>notFound(e.getMessage()));

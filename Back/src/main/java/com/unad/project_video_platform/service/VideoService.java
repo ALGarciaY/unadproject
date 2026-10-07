@@ -45,6 +45,9 @@ public class VideoService implements IVideoService {
     private VideoRepository videoRepository;
 
     @Autowired
+    private com.unad.project_video_platform.security.CurrentUser currentUser;
+
+    @Autowired
     private CategoryRepository categoryRepository;
 
     @Autowired
@@ -129,7 +132,6 @@ public class VideoService implements IVideoService {
         video.setTitle(videoDetails.getTitle());
         video.setDescription(videoDetails.getDescription());
         video.setCategory(videoDetails.getCategory());
-        video.setCreatedBy(videoDetails.getCreatedBy());
 
         return videoRepository.save(video);
     }
@@ -170,9 +172,6 @@ public class VideoService implements IVideoService {
         }
         if (video.getCategory() == null || video.getCategory().getId() == null) {
             throw new IllegalArgumentException("La categoria es obligatoria");
-        }
-        if (video.getCreatedBy() == null || video.getCreatedBy().getId() == null) {
-            throw new IllegalArgumentException("El usuario creador es obligatorio");
         }
 
         String trimmedTitle = video.getTitle().trim();
@@ -306,9 +305,6 @@ public class VideoService implements IVideoService {
                         .orElseThrow(() -> new RuntimeException(
                                 "Categoria no encontrada con id: " + video.getCategory().getId())));
 
-        video.setCreatedBy(
-                userRepository.findById(video.getCreatedBy().getId())
-                        .orElseThrow(() -> new RuntimeException(
-                                "Usuario creador no encontrado con id: " + video.getCreatedBy().getId())));
+        video.setCreatedBy(currentUser.require());
     }
 }

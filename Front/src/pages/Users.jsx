@@ -261,7 +261,7 @@ export default function Users() {
 
       <PageHeader
         eyebrow="Administración"
-        title="Gestión de usuarios janier"
+        title="Gestión de usuarios"
         description="Administra las cuentas registradas, su rol y su estado de acceso."
         actions={
           <Button icon="person_add" onClick={openCreate} disabled={loading}>

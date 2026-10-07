@@ -13,7 +13,9 @@ import com.unad.project_video_platform.repository.QuestionRepository;
 import com.unad.project_video_platform.repository.UserRepository;
 import com.unad.project_video_platform.repository.VideoRepository;
 import com.unad.project_video_platform.service.impl.IForumService;
+import com.unad.project_video_platform.security.CurrentUser;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -34,6 +36,9 @@ public class ForumService implements IForumService {
 
     @Autowired
     private UserRepository userRepository;
+
+    @Autowired
+    private CurrentUser currentUser;
 
     public List<ForumConversationResponse> getAllConversations() {
         return conversationRepository.findAllByOrderByCreatedAtDesc()
@@ -56,6 +61,7 @@ public class ForumService implements IForumService {
     }
 
     public NotificationSummaryResponse getNotificationSummary(Integer userId) {
+        requireSelf(userId);
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("Usuario no encontrado con id: " + userId));
 
@@ -111,6 +117,7 @@ public class ForumService implements IForumService {
 
     @Transactional
     public void markNotificationsSeen(Integer userId) {
+        requireSelf(userId);
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("Usuario no encontrado con id: " + userId));
         user.setLastSeenNotificationsAt(java.time.LocalDateTime.now());
@@ -123,8 +130,7 @@ public class ForumService implements IForumService {
 
         Video content = videoRepository.findById(request.getContentId())
                 .orElseThrow(() -> new RuntimeException("Contenido no encontrado con id: " + request.getContentId()));
-        User user = userRepository.findById(request.getUserId())
-                .orElseThrow(() -> new RuntimeException("Usuario no encontrado con id: " + request.getUserId()));
+        User user = currentUser.require();
 
         Conversation conversation = conversationRepository
                 .findFirstByContentIdOrderByCreatedAtAsc(content.getId())
@@ -136,6 +142,12 @@ public class ForumService implements IForumService {
         question.setDescription(request.getDescription().trim());
 
         return questionRepository.save(question);
+    }
+
+    private void requireSelf(Integer userId) {
+        if (!currentUser.require().getId().equals(userId)) {
+            throw new AccessDeniedException("No puedes consultar ni modificar las notificaciones de otro usuario");
+        }
     }
 
     private Conversation createConversation(Video content, User user, String requestedTitle) {
@@ -185,9 +197,6 @@ public class ForumService implements IForumService {
         }
         if (request.getContentId() == null) {
             throw new IllegalArgumentException("El contenido es obligatorio");
-        }
-        if (request.getUserId() == null) {
-            throw new IllegalArgumentException("El usuario es obligatorio");
         }
         if (request.getDescription() == null || request.getDescription().isBlank()) {
             throw new IllegalArgumentException("La descripcion de la pregunta es obligatoria");

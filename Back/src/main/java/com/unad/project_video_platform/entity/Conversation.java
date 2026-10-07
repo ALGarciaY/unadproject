@@ -1,5 +1,6 @@
 package com.unad.project_video_platform.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -32,6 +33,7 @@ public class Conversation {
 
     @ManyToOne
     @JoinColumn(name = "created_by", nullable = false)
+    @JsonIgnoreProperties({"documentNumber", "email"})
     private User createdBy;
 
     @Column(name = "title", nullable = false, length = 200)

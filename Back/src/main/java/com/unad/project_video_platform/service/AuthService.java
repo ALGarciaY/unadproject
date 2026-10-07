@@ -17,6 +17,8 @@ import org.springframework.stereotype.Service;
 @Service
 public class AuthService implements IAuthService {
 
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(AuthService.class);
+
     @Autowired
     private UserRepository userRepository;
 
@@ -34,7 +36,8 @@ public class AuthService implements IAuthService {
         User user = userRepository.findByEmail(request.getEmail())
                 .orElseThrow(() -> new IllegalArgumentException("Invalid credentials: Email or password incorrect"));
 
-        if (request.getDocumentNumber() == null
+        if (!Boolean.TRUE.equals(user.getStatus())
+            || request.getDocumentNumber() == null
             || !request.getDocumentNumber().equals(user.getDocumentNumber())) {
             throw new IllegalArgumentException("Invalid credentials: Email or password incorrect");
         }
@@ -51,11 +54,14 @@ public class AuthService implements IAuthService {
             throw new IllegalArgumentException("El correo electronico es obligatorio");
         }
 
-        User user = userRepository.findByEmail(request.getEmail().trim())
-                .orElseThrow(() -> new IllegalArgumentException("No existe un usuario con ese correo"));
+        User user = userRepository.findByEmail(request.getEmail().trim()).orElse(null);
+        if (user == null || !Boolean.TRUE.equals(user.getStatus())) {
+            return;
+        }
 
         if (mailUsername == null || mailUsername.isBlank()) {
-            throw new IllegalStateException("Configura MAIL_USERNAME y MAIL_PASSWORD para enviar correos");
+            log.error("Recuperacion solicitada pero MAIL_USERNAME no esta configurado");
+            return;
         }
 
         try {
@@ -76,7 +82,7 @@ public class AuthService implements IAuthService {
 
             mailSender.send(message);
         } catch (MailException e) {
-            throw new RuntimeException("No se pudo enviar el correo de recuperacion: " + e.getMessage(), e);
+            log.error("No se pudo enviar el correo de recuperacion", e);
         }
     }
 }

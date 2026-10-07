@@ -1,6 +1,8 @@
 package com.unad.project_video_platform.security;
 
 import com.unad.project_video_platform.dto.ApiResponse;
+import com.unad.project_video_platform.entity.User;
+import com.unad.project_video_platform.repository.UserRepository;
 import io.jsonwebtoken.Claims;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -23,6 +25,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     @Autowired
     private JwtService jwtService;
+
+    @Autowired
+    private UserRepository userRepository;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
@@ -48,9 +53,14 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
             Claims claims = jwtService.parseClaims(token);
             String username = claims.getSubject();
-            String role = claims.get("role", String.class);
 
-            if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+            User user = username == null ? null : userRepository.findByEmail(username).orElse(null);
+            if (user == null || !Boolean.TRUE.equals(user.getStatus())) {
+                throw new IllegalStateException("Usuario inactivo o inexistente");
+            }
+            String role = user.getRole() != null ? user.getRole().getRoleName() : "USER";
+
+            if (SecurityContextHolder.getContext().getAuthentication() == null) {
                 List<SimpleGrantedAuthority> authorities = List.of(new SimpleGrantedAuthority("ROLE_" + role));
                 UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
                         username,

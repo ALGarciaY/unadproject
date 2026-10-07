@@ -1,5 +1,6 @@
 package com.unad.project_video_platform.dto;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.unad.project_video_platform.entity.User;
 import com.unad.project_video_platform.entity.Video;
 import lombok.AllArgsConstructor;
@@ -16,6 +17,7 @@ public class NotificationItemResponse {
     private String conversationTitle;
     private String type;
     private Video content;
+    @JsonIgnoreProperties({"documentNumber", "email"})
     private User lastMessageBy;
     private LocalDateTime lastMessageAt;
 }
