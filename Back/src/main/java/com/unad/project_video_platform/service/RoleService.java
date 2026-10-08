@@ -43,6 +43,14 @@ public class RoleService implements IRoleService {
      */
     @Transactional
     public Role createRole(Role role) {
+        if (role.getRoleName() == null || role.getRoleName().isBlank()) {
+            throw new IllegalArgumentException("El nombre del rol es obligatorio");
+        }
+        role.setRoleName(role.getRoleName().trim());
+        if (role.getDescription() != null) {
+            role.setDescription(role.getDescription().trim());
+        }
+
         if (roleRepository.existsByRoleName(role.getRoleName())) {
             throw new IllegalArgumentException("Ya existe un rol con el nombre: " + role.getRoleName());
         }
@@ -57,14 +65,18 @@ public class RoleService implements IRoleService {
         Role role = roleRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Rol no encontrado con id: " + id));
 
+        if (roleDetails.getRoleName() == null || roleDetails.getRoleName().isBlank()) {
+            throw new IllegalArgumentException("El nombre del rol es obligatorio");
+        }
+        String roleName = roleDetails.getRoleName().trim();
+
         // Validar que el nombre no esté en uso por otro rol
-        if (!role.getRoleName().equals(roleDetails.getRoleName()) && 
-            roleRepository.existsByRoleName(roleDetails.getRoleName())) {
-            throw new IllegalArgumentException("Ya existe un rol con el nombre: " + roleDetails.getRoleName());
+        if (!role.getRoleName().equals(roleName) && roleRepository.existsByRoleName(roleName)) {
+            throw new IllegalArgumentException("Ya existe un rol con el nombre: " + roleName);
         }
 
-        role.setRoleName(roleDetails.getRoleName());
-        role.setDescription(roleDetails.getDescription());
+        role.setRoleName(roleName);
+        role.setDescription(roleDetails.getDescription() != null ? roleDetails.getDescription().trim() : null);
 
         return roleRepository.save(role);
     }

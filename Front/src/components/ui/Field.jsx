@@ -8,6 +8,14 @@ const controlBase =
 
 const controlTone = (invalid) => (invalid ? "border-danger" : "border-line");
 
+// Tipos de <input> donde "pattern" aplica segun el estandar HTML. En los
+// demas (checkbox, file, date, number...) el navegador simplemente lo ignora.
+const PATTERNABLE_TYPES = new Set([undefined, "text", "email", "search", "tel", "url", "password"]);
+// Exige al menos un caracter que no sea espacio: "required" por si solo deja
+// pasar un valor que es solo espacios en blanco.
+const NOT_BLANK_PATTERN = ".*\\S.*";
+const NOT_BLANK_TITLE = "Este campo no puede quedar vacío ni tener solo espacios.";
+
 function FieldShell({ id, label, hint, error, required, children, className = "" }) {
   return (
     <div className={`flex flex-col gap-1.5 ${className}`}>
@@ -46,11 +54,14 @@ export function Input({
 }) {
   const generatedId = useId();
   const inputId = id || generatedId;
+  const needsNotBlank = required && PATTERNABLE_TYPES.has(props.type);
 
   const input = (
     <input
       id={inputId}
       required={required}
+      pattern={needsNotBlank ? NOT_BLANK_PATTERN : undefined}
+      title={needsNotBlank ? NOT_BLANK_TITLE : undefined}
       aria-invalid={error ? true : undefined}
       className={`${controlBase} ${controlTone(Boolean(error))} ${
         icon ? "pl-10" : "px-3.5"

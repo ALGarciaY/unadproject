@@ -367,8 +367,12 @@ export default function Users() {
             name="documentNumber"
             value={form.documentNumber}
             onChange={handleChange}
-            disabled={saving}
-            hint="Se usa como método de autenticación."
+            disabled={saving || Boolean(editing)}
+            hint={
+              editing
+                ? "Es la credencial de acceso: no se puede cambiar al editar un usuario."
+                : "Se usa como método de autenticación."
+            }
             required
           />
 

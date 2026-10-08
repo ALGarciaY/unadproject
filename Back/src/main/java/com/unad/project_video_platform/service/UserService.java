@@ -67,9 +67,16 @@ public class UserService implements IUserService {
      */
     @Transactional
     public User createUser(User user) {
-        if (user.getDocumentNumber() == null || user.getDocumentNumber().isBlank()) {
-            throw new IllegalArgumentException("El número de documento es obligatorio");
-        }
+        validateRequiredText(user.getFirstName(), "El nombre es obligatorio");
+        validateRequiredText(user.getLastName(), "El apellido es obligatorio");
+        validateRequiredText(user.getEmail(), "El correo electrónico es obligatorio");
+        validateRequiredText(user.getDocumentNumber(), "El número de documento es obligatorio");
+
+        user.setFirstName(user.getFirstName().trim());
+        user.setLastName(user.getLastName().trim());
+        user.setEmail(user.getEmail().trim());
+        user.setDocumentNumber(user.getDocumentNumber().trim());
+
         // Validar email único
         if (userRepository.existsByEmail(user.getEmail())) {
             throw new IllegalArgumentException("Ya existe un usuario con el email: " + user.getEmail());
@@ -101,16 +108,15 @@ public class UserService implements IUserService {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Usuario no encontrado con id: " + id));
 
-        // Validar email único (si cambió)
-        if (!user.getEmail().equals(userDetails.getEmail()) && 
-            userRepository.existsByEmail(userDetails.getEmail())) {
-            throw new IllegalArgumentException("Ya existe un usuario con el email: " + userDetails.getEmail());
-        }
+        validateRequiredText(userDetails.getFirstName(), "El nombre es obligatorio");
+        validateRequiredText(userDetails.getLastName(), "El apellido es obligatorio");
+        validateRequiredText(userDetails.getEmail(), "El correo electrónico es obligatorio");
 
-        // Validar documento único (si cambió)
-        if (!user.getDocumentNumber().equals(userDetails.getDocumentNumber()) && 
-            userRepository.existsByDocumentNumber(userDetails.getDocumentNumber())) {
-            throw new IllegalArgumentException("Ya existe un usuario con el número de documento: " + userDetails.getDocumentNumber());
+        String email = userDetails.getEmail().trim();
+
+        // Validar email único (si cambió)
+        if (!user.getEmail().equals(email) && userRepository.existsByEmail(email)) {
+            throw new IllegalArgumentException("Ya existe un usuario con el email: " + email);
         }
 
         // Validar que el rol existe si se proporciona
@@ -119,12 +125,13 @@ public class UserService implements IUserService {
                     .orElseThrow(() -> new RuntimeException("Rol no encontrado con id: " + userDetails.getRole().getId()));
         }
 
+        // El numero de documento es la credencial de acceso: no se cambia desde
+        // la edicion de usuarios, solo al crear la cuenta.
         user.setRole(userDetails.getRole());
-        user.setFirstName(userDetails.getFirstName());
-        user.setLastName(userDetails.getLastName());
+        user.setFirstName(userDetails.getFirstName().trim());
+        user.setLastName(userDetails.getLastName().trim());
         user.setDocumentType(userDetails.getDocumentType());
-        user.setDocumentNumber(userDetails.getDocumentNumber());
-        user.setEmail(userDetails.getEmail());
+        user.setEmail(email);
         user.setStatus(userDetails.getStatus() != null ? userDetails.getStatus() : true);
         user.setPhone(userDetails.getPhone());
         user.setCargo(userDetails.getCargo());
@@ -142,25 +149,33 @@ public class UserService implements IUserService {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new RuntimeException("Usuario no encontrado con email: " + email));
 
-        if (userDetails.getDocumentNumber() == null || userDetails.getDocumentNumber().isBlank()) {
-            throw new IllegalArgumentException("El numero de documento es obligatorio");
-        }
+        validateRequiredText(userDetails.getFirstName(), "El nombre es obligatorio");
+        validateRequiredText(userDetails.getLastName(), "El apellido es obligatorio");
+        validateRequiredText(userDetails.getDocumentNumber(), "El numero de documento es obligatorio");
 
-        if (!user.getDocumentNumber().equals(userDetails.getDocumentNumber())
-                && userRepository.existsByDocumentNumber(userDetails.getDocumentNumber())) {
+        String documentNumber = userDetails.getDocumentNumber().trim();
+
+        if (!user.getDocumentNumber().equals(documentNumber)
+                && userRepository.existsByDocumentNumber(documentNumber)) {
             throw new IllegalArgumentException(
-                    "Ya existe un usuario con el numero de documento: " + userDetails.getDocumentNumber());
+                    "Ya existe un usuario con el numero de documento: " + documentNumber);
         }
 
-        user.setFirstName(userDetails.getFirstName());
-        user.setLastName(userDetails.getLastName());
+        user.setFirstName(userDetails.getFirstName().trim());
+        user.setLastName(userDetails.getLastName().trim());
         user.setDocumentType(userDetails.getDocumentType());
-        user.setDocumentNumber(userDetails.getDocumentNumber());
+        user.setDocumentNumber(documentNumber);
         user.setPhone(userDetails.getPhone());
         user.setCargo(userDetails.getCargo());
         user.setBio(userDetails.getBio());
 
         return userRepository.save(user);
+    }
+
+    private void validateRequiredText(String value, String message) {
+        if (value == null || value.isBlank()) {
+            throw new IllegalArgumentException(message);
+        }
     }
 
     private User getCurrentUserEntity() {
