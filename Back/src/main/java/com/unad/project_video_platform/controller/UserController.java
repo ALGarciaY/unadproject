@@ -207,6 +207,9 @@ public class UserController {
         try {
             userService.deleteUser(id);
             return ResponseEntity.ok(ApiResponse.<Void>ok("User deleted successfully", null));
+        } catch (org.springframework.security.access.AccessDeniedException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(ApiResponse.<Void>forbidden(e.getMessage()));
         } catch (RuntimeException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(ApiResponse.<Void>notFound(e.getMessage()));

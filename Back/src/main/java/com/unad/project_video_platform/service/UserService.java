@@ -27,6 +27,9 @@ public class UserService implements IUserService {
     @Autowired
     private FileStorageService fileStorageService;
 
+    @Autowired
+    private com.unad.project_video_platform.security.CurrentUser currentUser;
+
     /**
      * Obtiene todos los usuarios
      */
@@ -225,6 +228,10 @@ public class UserService implements IUserService {
     public void deleteUser(Integer id) {
         if (!userRepository.existsById(id)) {
             throw new RuntimeException("Usuario no encontrado con id: " + id);
+        }
+        if (currentUser.require().getId().equals(id)) {
+            throw new org.springframework.security.access.AccessDeniedException(
+                    "No puedes eliminar tu propia cuenta");
         }
         userRepository.deleteById(id);
     }

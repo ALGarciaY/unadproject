@@ -14,6 +14,7 @@ import {
   Select,
 } from "../components/ui";
 import useResourceTable from "../hooks/useResourceTable";
+import AuthService from "../services/AuthService";
 import RoleService from "../services/RoleService";
 import UserService from "../services/UserService";
 import { getUserName } from "../utils/format";
@@ -53,6 +54,7 @@ const resolveRoleName = (user, roles) => {
 };
 
 export default function Users() {
+  const currentUserId = AuthService.getCurrentUser()?.userId;
   const load = useCallback(() => UserService.getAll(), []);
 
   const {
@@ -243,7 +245,8 @@ export default function Users() {
             variant="dangerSoft"
             icon="delete"
             onClick={() => setToDelete(user)}
-            disabled={saving}
+            disabled={saving || user.id === currentUserId}
+            title={user.id === currentUserId ? "No puedes eliminar tu propia cuenta" : undefined}
             aria-label={`Eliminar ${getUserName(user)}`}
           >
             Eliminar
